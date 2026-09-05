@@ -244,8 +244,75 @@ function Index() {
   const [debrief, setDebrief] = useState<DebriefData>(HARDCODED_DEBRIEF);
   const [demo, setDemo] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [recording, setRecording] = useState(false);
+  const [micDenied, setMicDenied] = useState(false);
+  const [speechSupported] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const w = window as any;
+    return Boolean(w.SpeechRecognition || w.webkitSpeechRecognition);
+  });
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const retryRef = useRef(0);
+  const recognitionRef = useRef<any>(null);
+  const speechBaseRef = useRef("");
+
+  const stopRecording = () => {
+    const rec = recognitionRef.current;
+    recognitionRef.current = null;
+    if (rec) {
+      try {
+        rec.onend = null;
+        rec.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    setRecording(false);
+    setAvatarState("listening");
+  };
+
+  const startRecording = () => {
+    if (!speechSupported || recording) return;
+    const w = window as any;
+    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!Ctor) return;
+    let rec: any;
+    try {
+      rec = new Ctor();
+    } catch {
+      return;
+    }
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-IN";
+    speechBaseRef.current = answer ? answer + (answer.endsWith(" ") ? "" : " ") : "";
+    rec.onresult = (e: any) => {
+      let transcript = "";
+      for (let i = 0; i < e.results.length; i++) {
+        transcript += e.results[i][0]?.transcript ?? "";
+      }
+      setAnswer(speechBaseRef.current + transcript);
+    };
+    rec.onerror = (e: any) => {
+      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+        setMicDenied(true);
+      }
+      stopRecording();
+    };
+    rec.onend = () => {
+      if (recognitionRef.current === rec) stopRecording();
+    };
+    recognitionRef.current = rec;
+    try {
+      rec.start();
+    } catch {
+      recognitionRef.current = null;
+      return;
+    }
+    setMicDenied(false);
+    setRecording(true);
+    setAvatarState("listening");
+  };
 
   const question = questions[questionIndex];
 
@@ -265,7 +332,22 @@ function Index() {
     return () => window.speechSynthesis.cancel();
   }, [view, questionIndex, question]);
 
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(
+    () => () => {
+      timers.current.forEach(clearTimeout);
+      const rec = recognitionRef.current;
+      recognitionRef.current = null;
+      if (rec) {
+        try {
+          rec.onend = null;
+          rec.stop();
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    []
+  );
 
   const startInterview = async () => {
     setView("preparing");
@@ -282,6 +364,7 @@ function Index() {
 
   const submitAnswer = async () => {
     if (busy || !answer.trim() || !question) return;
+    stopRecording();
     const currentAnswer = answer;
     const currentQuestion = question.question;
     setAnswer("");
@@ -457,6 +540,16 @@ function Index() {
                   placeholder="Type your answer as you would say it…"
                   className="w-full rounded-xl border border-input bg-card p-4 text-base leading-relaxed placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
+                {!speechSupported && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Voice input works best in Chrome. Type your answer here.
+                  </p>
+                )}
+                {micDenied && (
+                  <p className="mt-2 text-sm text-amber-500">
+                    Mic blocked — type your answer instead
+                  </p>
+                )}
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
                     onClick={submitAnswer}
@@ -465,13 +558,17 @@ function Index() {
                   >
                     Submit answer
                   </button>
-                  <button
-                    disabled
-                    title="Coming next"
-                    className="cursor-not-allowed rounded-xl border border-input px-6 py-3 text-base text-muted-foreground opacity-50"
-                  >
-                    🎤 Speak instead (coming next)
-                  </button>
+                  {speechSupported && (
+                    <button
+                      onClick={recording ? stopRecording : startRecording}
+                      className="inline-flex items-center gap-2 rounded-xl border border-input px-6 py-3 text-base text-foreground"
+                    >
+                      {recording && (
+                        <span className="rec-dot inline-block h-2.5 w-2.5 rounded-full bg-[#DC2626]" />
+                      )}
+                      {recording ? "⏹ Stop" : "🎤 Speak your answer"}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
