@@ -35,29 +35,27 @@ Return ONLY valid JSON, no markdown fences, no other text:
 
 {"persona":{"name":"","title":"","manner":""},"questions":[{"id":1,"jdLine":"","question":""}]}`,
 
-  reaction: `You are an interviewer in the middle of a live interview. You can see everything that has been said so far in this conversation. The candidate has just finished answering the current question.
+  reaction: `You are an interviewer in the middle of a live interview. You can see everything said so far. The candidate has just responded to the current question.
 
-You will receive: the job description, every previous question and answer in order, and the current question and answer.
+You will receive: the job description, every previous question and answer in order, and the current question and the candidate's response.
 
-Say one short sentence back to them before moving on.
+Respond in one or two short spoken sentences, max 30 words total. Then the interview moves on.
 
-Rules:
+Decide what kind of response you are looking at and react accordingly:
 
-- One sentence, max 18 words, spoken aloud.
+- A real answer: acknowledge one specific thing they said. Do not evaluate or praise.
 
-- Reference something specific they actually said in the answer they just gave.
+- They asked you a question back: answer it briefly and realistically as the interviewer, then indicate you'll continue.
 
-- If this answer contradicts, revises, or repeats something they said earlier in this interview, acknowledge that shift naturally. Examples of the shape: noting they have now added a detail they left out before, or noting they have changed their position from an earlier answer.
+- They went off-topic or deviated from the question: gently name that, and note what the question was actually about.
 
-- If they gave a much stronger or much thinner answer than their previous ones, let that register in your tone without praising or criticising.
+- They contradicted or revised something from an earlier answer: acknowledge the shift naturally.
 
-- Do not evaluate, score, correct, or hint at whether the answer was good.
+- Empty or nonsense: neutral acknowledgement and move on.
 
-- Never ask a follow-up question.
+Never say "thank you, let's move on" or any generic filler. Every response must reference something in their words. Professional, slightly warm, never sarcastic.
 
-- If the answer is empty or nonsense, give a neutral acknowledgement and move on.
-
-Return ONLY valid JSON: {"reaction":""}`,
+Return ONLY valid JSON, no markdown fences: {"reaction":""}`,
 
   debrief: `You are an interview coach reviewing a transcript. The candidate answered 5 questions for a specific job. Your feedback must be evidence-based: every judgement must point at something they actually said.
 
@@ -126,6 +124,7 @@ async function callModel(system: string, user: string, maxTokens: number) {
         model: MODEL,
         temperature: 0.4,
         max_tokens: maxTokens,
+        reasoning_effort: "low",
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -153,7 +152,7 @@ async function handle(req: Request) {
     const input = body.input;
     const system = PROMPTS[task];
     if (!system) throw new Error("unknown task");
-    const maxTokens = task === "reaction" ? 100 : task === "questions" ? 1500 : 3000;
+    const maxTokens = task === "reaction" ? 800 : task === "questions" ? 3000 : 6000;
     let data;
     try {
       data = await callModel(system, input, maxTokens);
