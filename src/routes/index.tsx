@@ -23,7 +23,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-/* ---------------- Hardcoded data ---------------- */
+/* ---------------- Hardcoded data (fallbacks) ---------------- */
 
 const QUESTIONS = [
   {
@@ -112,11 +112,58 @@ const PRIORITIES = [
   "Cut blame words ('the APIs kept changing') and reframe every obstacle as an action you took.",
 ];
 
+/* ---------------- Types & AI helper ---------------- */
+
+type Persona = { name: string; title: string; manner: string };
+type QuestionItem = { id: number; jdLine: string; question: string };
+type DebriefData = {
+  perAnswer: { jdRequirement: string; quote: string; whyWeak: string; strongerVersion: string }[];
+  priorities: string[];
+};
+
+const DEFAULT_PERSONA: Persona = {
+  name: "Meera Iyer",
+  title: "Hiring Manager",
+  manner: "Direct but warm.",
+};
+
+const HARDCODED_QUESTIONS = { persona: DEFAULT_PERSONA, questions: QUESTIONS };
+
+const HARDCODED_DEBRIEF: DebriefData = {
+  perAnswer: DEBRIEF.map((d) => ({
+    jdRequirement: d.jdLine,
+    quote: d.said,
+    whyWeak: d.whyWeak,
+    strongerVersion: d.stronger,
+  })),
+  priorities: PRIORITIES,
+};
+
+async function callAI(
+  task: string,
+  input: string,
+  fallback: unknown
+): Promise<{ data: any; source: string }> {
+  try {
+    const res = await fetch("/api/interview-ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task, input }),
+    });
+    if (!res.ok) return { data: fallback, source: "fallback" };
+    const json = await res.json();
+    if (!json || json.data == null) return { data: fallback, source: "fallback" };
+    return { data: json.data, source: typeof json.source === "string" ? json.source : "live" };
+  } catch {
+    return { data: fallback, source: "fallback" };
+  }
+}
+
 /* ---------------- Avatar ---------------- */
 
 type AvatarState = "speaking" | "listening" | "thinking";
 
-function Avatar({ state }: { state: AvatarState }) {
+function Avatar({ state, name, title }: { state: AvatarState; name: string; title: string }) {
   return (
     <div className="relative flex flex-col items-center">
       <div
@@ -173,15 +220,15 @@ function Avatar({ state }: { state: AvatarState }) {
           <span className="think-dot h-2.5 w-2.5 rounded-full bg-muted-foreground [animation-delay:300ms]" />
         </div>
       )}
-      <p className="mt-4 text-lg font-semibold text-foreground">Meera Iyer</p>
-      <p className="text-sm text-muted-foreground">Hiring Manager</p>
+      <p className="mt-4 text-lg font-semibold text-foreground">{name}</p>
+      <p className="text-sm text-muted-foreground">{title}</p>
     </div>
   );
 }
 
 /* ---------------- Views ---------------- */
 
-type View = "setup" | "interview" | "result";
+type View = "setup" | "preparing" | "interview" | "reviewing" | "result";
 
 function Index() {
   const [view, setView] = useState<View>("setup");
@@ -192,9 +239,13 @@ function Index() {
   const [answers, setAnswers] = useState<{ question: string; answer: string }[]>([]);
   const [reaction, setReaction] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [persona, setPersona] = useState<Persona>(DEFAULT_PERSONA);
+  const [questions, setQuestions] = useState<QuestionItem[]>(QUESTIONS);
+  const [debrief, setDebrief] = useState<DebriefData>(HARDCODED_DEBRIEF);
+  const [demo, setDemo] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const question = QUESTIONS[questionIndex];
+  const question = questions[questionIndex];
 
   // Speak the question aloud whenever it appears.
   useEffect(() => {
@@ -214,30 +265,85 @@ function Index() {
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
-  const submitAnswer = () => {
+  const startInterview = async () => {
+    setView("preparing");
+    setAvatarState("thinking");
+    const { data, source } = await callAI("questions", jd, HARDCODED_QUESTIONS);
+    if (source === "fallback") setDemo(true);
+    const qs: QuestionItem[] =
+      Array.isArray(data?.questions) && data.questions.length > 0 ? data.questions : QUESTIONS;
+    setQuestions(qs);
+    setPersona(data?.persona ?? DEFAULT_PERSONA);
+    setQuestionIndex(0);
+    setView("interview");
+  };
+
+  const submitAnswer = async () => {
     if (busy || !answer.trim() || !question) return;
-    setAnswers((prev) => [...prev, { question: question.question, answer }]);
+    const currentAnswer = answer;
+    const currentQuestion = question.question;
+    const newAnswers = [...answers, { question: currentQuestion, answer: currentAnswer }];
+    setAnswers(newAnswers);
     setAnswer("");
     setBusy(true);
     setAvatarState("thinking");
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 
-    timers.current.push(
-      setTimeout(() => {
-        setReaction("Thanks — noted.");
-        timers.current.push(
-          setTimeout(() => {
-            setReaction(null);
-            setBusy(false);
-            if (questionIndex + 1 >= QUESTIONS.length) {
-              setView("result");
-            } else {
-              setQuestionIndex((i) => i + 1);
-            }
-          }, 1500)
+    const input = JSON.stringify({
+      jd,
+      history: answers.map((a) => ({ question: a.question, answer: a.answer })),
+      current: { question: currentQuestion, answer: currentAnswer },
+    });
+    const { data, source } = await callAI("reaction", input, {
+      reaction: "Thank you, let's move on.",
+    });
+    if (source === "fallback") setDemo(true);
+    const text =
+      typeof data?.reaction === "string" && data.reaction
+        ? data.reaction
+        : "Thank you, let's move on.";
+    setReaction(text);
+
+    const advance = async () => {
+      setReaction(null);
+      setBusy(false);
+      if (questionIndex + 1 >= questions.length) {
+        setView("reviewing");
+        setAvatarState("thinking");
+        const res = await callAI(
+          "debrief",
+          JSON.stringify({ jd, transcript: newAnswers }),
+          HARDCODED_DEBRIEF
         );
-      }, 1200)
-    );
+        if (res.source === "fallback") setDemo(true);
+        setDebrief(
+          res.data && Array.isArray(res.data.perAnswer) && Array.isArray(res.data.priorities)
+            ? res.data
+            : HARDCODED_DEBRIEF
+        );
+        setView("result");
+      } else {
+        setQuestionIndex((i) => i + 1);
+      }
+    };
+
+    if ("speechSynthesis" in window) {
+      const utter = new SpeechSynthesisUtterance(text);
+      setAvatarState("speaking");
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        advance();
+      };
+      utter.onend = finish;
+      utter.onerror = finish;
+      window.speechSynthesis.speak(utter);
+      // Safety net in case speech events never fire.
+      timers.current.push(setTimeout(finish, 12000));
+    } else {
+      timers.current.push(setTimeout(advance, 1500));
+    }
   };
 
   const startOver = () => {
@@ -250,11 +356,21 @@ function Index() {
     setAnswer("");
     setReaction(null);
     setBusy(false);
+    setPersona(DEFAULT_PERSONA);
+    setQuestions(QUESTIONS);
+    setDebrief(HARDCODED_DEBRIEF);
+    setDemo(false);
     setView("setup");
   };
 
   return (
     <div className="dark min-h-screen bg-background text-foreground">
+      {demo && (view === "interview" || view === "result" || view === "reviewing") && (
+        <span className="fixed right-4 top-4 z-50 rounded-md bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-500">
+          Demo response — live AI unavailable
+        </span>
+      )}
+
       {view === "setup" && (
         <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center px-6 py-16">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
@@ -276,10 +392,7 @@ function Index() {
           />
           <button
             disabled={jd.trim().length <= 100}
-            onClick={() => {
-              setQuestionIndex(0);
-              setView("interview");
-            }}
+            onClick={startInterview}
             className="mt-6 rounded-xl bg-[#DC2626] px-6 py-4 text-lg font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
           >
             Start interview
@@ -292,18 +405,28 @@ function Index() {
         </main>
       )}
 
+      {view === "preparing" && (
+        <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-6 py-16">
+          <Avatar state="thinking" name={DEFAULT_PERSONA.name} title={DEFAULT_PERSONA.title} />
+          <p className="mt-8 text-lg text-muted-foreground">Reading the job description…</p>
+        </main>
+      )}
+
       {view === "interview" && question && (
         <main className="mx-auto grid min-h-screen w-full max-w-5xl gap-10 px-6 py-12 md:grid-cols-[240px_1fr] md:items-center">
           <div className="flex justify-center md:justify-start">
-            <Avatar state={avatarState} />
+            <Avatar state={avatarState} name={persona.name} title={persona.title} />
           </div>
           <section aria-live="polite">
             <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
-              Question {questionIndex + 1} of {QUESTIONS.length}
+              Question {questionIndex + 1} of {questions.length}
             </p>
             <h2 className="mt-3 text-2xl font-semibold leading-snug sm:text-3xl">
               {question.question}
             </h2>
+            <p className="mt-3 text-sm font-medium text-[#DC2626]">
+              From the JD: {question.jdLine}
+            </p>
 
             {reaction ? (
               <p className="mt-8 text-xl text-muted-foreground">{reaction}</p>
@@ -342,6 +465,13 @@ function Index() {
         </main>
       )}
 
+      {view === "reviewing" && (
+        <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-6 py-16">
+          <Avatar state="thinking" name={persona.name} title={persona.title} />
+          <p className="mt-8 text-lg text-muted-foreground">Reviewing what you said…</p>
+        </main>
+      )}
+
       {view === "result" && (
         <main className="mx-auto w-full max-w-3xl px-6 py-16">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Your debrief</h1>
@@ -350,14 +480,16 @@ function Index() {
           </p>
 
           <div className="mt-10 space-y-8">
-            {DEBRIEF.map((d, i) => (
+            {debrief.perAnswer.map((d, i) => (
               <article key={i} className="rounded-2xl border border-border bg-card p-6">
                 <span className="inline-block rounded-md bg-[#DC2626]/15 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-[#DC2626]">
-                  JD: {d.jdLine}
+                  JD: {d.jdRequirement}
                 </span>
-                <h2 className="mt-3 text-xl font-semibold leading-snug">{d.question}</h2>
+                <h2 className="mt-3 text-xl font-semibold leading-snug">
+                  {questions[i]?.question ?? answers[i]?.question ?? `Answer ${i + 1}`}
+                </h2>
                 <blockquote className="mt-4 border-l-2 border-border pl-4 italic text-muted-foreground">
-                  “{d.said}”
+                  “{d.quote}”
                 </blockquote>
                 <p className="mt-4 text-base leading-relaxed">
                   <span className="font-semibold">Why this was weak: </span>
@@ -366,7 +498,7 @@ function Index() {
                 <div className="mt-4 rounded-xl bg-secondary p-4">
                   <p className="text-base leading-relaxed">
                     <span className="font-semibold">Stronger version: </span>
-                    {d.stronger}
+                    {d.strongerVersion}
                   </p>
                 </div>
               </article>
@@ -376,7 +508,7 @@ function Index() {
           <section className="mt-12">
             <h2 className="text-2xl font-bold">Your top 3 priorities</h2>
             <ol className="mt-4 list-decimal space-y-3 pl-6 text-lg leading-relaxed">
-              {PRIORITIES.map((p, i) => (
+              {debrief.priorities.map((p, i) => (
                 <li key={i}>{p}</li>
               ))}
             </ol>
