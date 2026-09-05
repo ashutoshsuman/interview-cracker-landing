@@ -6,7 +6,7 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const MODEL = "llama-3.3-70b-versatile";
+const MODEL = "openai/gpt-oss-120b";
 
 const BASE_URL = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -132,7 +132,11 @@ async function callModel(system: string, user: string, maxTokens: number) {
         ],
       }),
     });
-    if (!res.ok) throw new Error(`upstream ${res.status}: ${await res.text()}`);
+    if (!res.ok) {
+      const upstreamBody = await res.text();
+      console.error(`interview-ai upstream error: status ${res.status}, body: ${upstreamBody}`);
+      throw new Error(`upstream ${res.status}: ${upstreamBody}`);
+    }
     const json = await res.json();
     return extractJson(json.choices?.[0]?.message?.content ?? "");
   } finally {
