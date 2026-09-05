@@ -243,7 +243,9 @@ function Index() {
   const [questions, setQuestions] = useState<QuestionItem[]>(QUESTIONS);
   const [debrief, setDebrief] = useState<DebriefData>(HARDCODED_DEBRIEF);
   const [demo, setDemo] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const retryRef = useRef(0);
 
   const question = questions[questionIndex];
 
