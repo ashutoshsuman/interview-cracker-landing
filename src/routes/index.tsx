@@ -60,8 +60,8 @@ const QUESTIONS = [
 
 const DEBRIEF = [
   {
-    question: QUESTIONS[0].question,
-    jdLine: QUESTIONS[0].jdLine,
+    question: QUESTIONS[0]!.question,
+    jdLine: QUESTIONS[0]!.jdLine,
     said: "I built a data table for one project and some other teams copied it.",
     whyWeak:
       "It names an artefact but not the decisions: no API design, no documentation, no trade-offs. 'Copied it' suggests it spread by accident, not because you made it reusable.",
@@ -69,8 +69,8 @@ const DEBRIEF = [
       "Name the component, the abstraction you chose (headless vs styled), how you versioned it, and one concrete adoption number — '4 teams, ~30 screens'. Show you designed for reuse on purpose.",
   },
   {
-    question: QUESTIONS[1].question,
-    jdLine: QUESTIONS[1].jdLine,
+    question: QUESTIONS[1]!.question,
+    jdLine: QUESTIONS[1]!.jdLine,
     said: "I added useMemo and useCallback in a few places and it got faster.",
     whyWeak:
       "This is the textbook guess-and-check answer. It skips measurement entirely, and scattered memoisation often makes performance worse. Interviewers hear 'I don't profile'.",
@@ -78,8 +78,8 @@ const DEBRIEF = [
       "Lead with measurement: React DevTools Profiler, what was actually re-rendering, the root cause (e.g. a new object identity every render from context), then the fix and the before/after numbers.",
   },
   {
-    question: QUESTIONS[2].question,
-    jdLine: QUESTIONS[2].jdLine,
+    question: QUESTIONS[2]!.question,
+    jdLine: QUESTIONS[2]!.jdLine,
     said: "TypeScript catches undefined errors. Sometimes I just use 'any' when it's annoying.",
     whyWeak:
       "'undefined errors' is generic, and reaching for 'any' under strict mode is a red flag for a role that explicitly says strict TypeScript.",
@@ -87,8 +87,8 @@ const DEBRIEF = [
       "Give one specific save (e.g. a discriminated union caught an unhandled API state at compile time) and one specific fight you resolved properly — generics, satisfies, or a type guard — never 'any'.",
   },
   {
-    question: QUESTIONS[3].question,
-    jdLine: QUESTIONS[3].jdLine,
+    question: QUESTIONS[3]!.question,
+    jdLine: QUESTIONS[3]!.jdLine,
     said: "I add alt text to images and make sure colours have enough contrast.",
     whyWeak:
       "Alt text and contrast are the minimum. Nothing about keyboard navigation, focus management, screen readers, or ARIA — which is where real accessibility work lives.",
@@ -96,8 +96,8 @@ const DEBRIEF = [
       "Describe a full interaction: a modal or combobox you built with correct focus trapping, keyboard support, and aria attributes, ideally tested with an actual screen reader (VoiceOver/NVDA).",
   },
   {
-    question: QUESTIONS[4].question,
-    jdLine: QUESTIONS[4].jdLine,
+    question: QUESTIONS[4]!.question,
+    jdLine: QUESTIONS[4]!.jdLine,
     said: "We shipped a dashboard redesign. It was late because the APIs kept changing.",
     whyWeak:
       "The blame lands on 'the APIs'. There's no ownership, no decision you made, and no result. Interviewers want to hear what you did, not what happened to you.",
