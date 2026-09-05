@@ -244,8 +244,75 @@ function Index() {
   const [debrief, setDebrief] = useState<DebriefData>(HARDCODED_DEBRIEF);
   const [demo, setDemo] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [recording, setRecording] = useState(false);
+  const [micDenied, setMicDenied] = useState(false);
+  const [speechSupported] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const w = window as any;
+    return Boolean(w.SpeechRecognition || w.webkitSpeechRecognition);
+  });
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const retryRef = useRef(0);
+  const recognitionRef = useRef<any>(null);
+  const speechBaseRef = useRef("");
+
+  const stopRecording = () => {
+    const rec = recognitionRef.current;
+    recognitionRef.current = null;
+    if (rec) {
+      try {
+        rec.onend = null;
+        rec.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    setRecording(false);
+    setAvatarState("listening");
+  };
+
+  const startRecording = () => {
+    if (!speechSupported || recording) return;
+    const w = window as any;
+    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!Ctor) return;
+    let rec: any;
+    try {
+      rec = new Ctor();
+    } catch {
+      return;
+    }
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-IN";
+    speechBaseRef.current = answer ? answer + (answer.endsWith(" ") ? "" : " ") : "";
+    rec.onresult = (e: any) => {
+      let transcript = "";
+      for (let i = 0; i < e.results.length; i++) {
+        transcript += e.results[i][0]?.transcript ?? "";
+      }
+      setAnswer(speechBaseRef.current + transcript);
+    };
+    rec.onerror = (e: any) => {
+      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+        setMicDenied(true);
+      }
+      stopRecording();
+    };
+    rec.onend = () => {
+      if (recognitionRef.current === rec) stopRecording();
+    };
+    recognitionRef.current = rec;
+    try {
+      rec.start();
+    } catch {
+      recognitionRef.current = null;
+      return;
+    }
+    setMicDenied(false);
+    setRecording(true);
+    setAvatarState("listening");
+  };
 
   const question = questions[questionIndex];
 
