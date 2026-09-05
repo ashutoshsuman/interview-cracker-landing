@@ -215,7 +215,7 @@ function Index() {
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const submitAnswer = () => {
-    if (busy || !answer.trim()) return;
+    if (busy || !answer.trim() || !question) return;
     setAnswers((prev) => [...prev, { question: question.question, answer }]);
     setAnswer("");
     setBusy(true);
