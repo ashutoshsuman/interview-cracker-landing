@@ -303,7 +303,6 @@ function Index() {
       typeof data?.reaction === "string" && data.reaction
         ? data.reaction
         : "Thank you, let's move on.";
-    const shouldAdvance = data?.advance === false ? retryRef.current >= 1 : true;
     setReaction(text);
 
     const advance = async () => {
