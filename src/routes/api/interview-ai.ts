@@ -55,7 +55,15 @@ Decide what kind of response you are looking at and react accordingly:
 
 Never say "thank you, let's move on" or any generic filler. Every response must reference something in their words. Professional, slightly warm, never sarcastic.
 
-Return ONLY valid JSON, no markdown fences: {"reaction":""}`,
+Also decide whether the interview should move on.
+
+Set advance to false when the candidate did not attempt an answer: they said they did not understand, asked you to repeat or rephrase, asked you a question instead of answering, or gave a response with no attempt at content. In that case your reaction must clarify or rephrase the question in your own words and invite them to answer it, without giving away what a good answer contains.
+
+Set advance to true when they made a genuine attempt, even a weak, short, rambling or off-topic one. A bad answer is still an answer and the interview moves on.
+
+Never set advance to false more than is natural — if they have already been given a second chance on this question and still do not attempt it, set advance to true and move on.
+
+Return ONLY valid JSON, no markdown fences: {"reaction":"","advance":true}`,
 
   debrief: `You are an interview coach reviewing a transcript. The candidate answered 5 questions for a specific job. Your feedback must be evidence-based: every judgement must point at something they actually said.
 
@@ -90,7 +98,7 @@ const FALLBACK: Record<string, unknown> = {
       { id: 5, jdLine: "demo mode", question: "Week one, you inherit undocumented code. What do you do first?" },
     ],
   },
-  reaction: { reaction: "Thank you, let's move on." },
+  reaction: { reaction: "Thank you, let's move on.", advance: true },
   debrief: {
     perAnswer: [],
     priorities: [
