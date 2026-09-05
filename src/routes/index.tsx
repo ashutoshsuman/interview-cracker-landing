@@ -243,7 +243,9 @@ function Index() {
   const [questions, setQuestions] = useState<QuestionItem[]>(QUESTIONS);
   const [debrief, setDebrief] = useState<DebriefData>(HARDCODED_DEBRIEF);
   const [demo, setDemo] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const retryRef = useRef(0);
 
   const question = questions[questionIndex];
 
@@ -282,8 +284,6 @@ function Index() {
     if (busy || !answer.trim() || !question) return;
     const currentAnswer = answer;
     const currentQuestion = question.question;
-    const newAnswers = [...answers, { question: currentQuestion, answer: currentAnswer }];
-    setAnswers(newAnswers);
     setAnswer("");
     setBusy(true);
     setAvatarState("thinking");
@@ -296,6 +296,7 @@ function Index() {
     });
     const { data, source } = await callAI("reaction", input, {
       reaction: "Thank you, let's move on.",
+      advance: true,
     });
     if (source === "fallback") setDemo(true);
     const text =
@@ -307,6 +308,17 @@ function Index() {
     const advance = async () => {
       setReaction(null);
       setBusy(false);
+      if (data?.advance === false && retryRef.current < 1) {
+        retryRef.current += 1;
+        setRetryCount(retryRef.current);
+        setAnswer("");
+        setAvatarState("listening");
+        return;
+      }
+      retryRef.current = 0;
+      setRetryCount(0);
+      const newAnswers = [...answers, { question: currentQuestion, answer: currentAnswer }];
+      setAnswers(newAnswers);
       if (questionIndex + 1 >= questions.length) {
         setView("reviewing");
         setAvatarState("thinking");
@@ -360,6 +372,8 @@ function Index() {
     setQuestions(QUESTIONS);
     setDebrief(HARDCODED_DEBRIEF);
     setDemo(false);
+    retryRef.current = 0;
+    setRetryCount(0);
     setView("setup");
   };
 
