@@ -332,7 +332,22 @@ function Index() {
     return () => window.speechSynthesis.cancel();
   }, [view, questionIndex, question]);
 
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(
+    () => () => {
+      timers.current.forEach(clearTimeout);
+      const rec = recognitionRef.current;
+      recognitionRef.current = null;
+      if (rec) {
+        try {
+          rec.onend = null;
+          rec.stop();
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    []
+  );
 
   const startInterview = async () => {
     setView("preparing");
@@ -349,6 +364,7 @@ function Index() {
 
   const submitAnswer = async () => {
     if (busy || !answer.trim() || !question) return;
+    stopRecording();
     const currentAnswer = answer;
     const currentQuestion = question.question;
     setAnswer("");
