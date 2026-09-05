@@ -292,7 +292,7 @@ function Index() {
     const input = JSON.stringify({
       jd,
       history: answers.map((a) => ({ question: a.question, answer: a.answer })),
-      current: { question: currentQuestion, answer: currentAnswer },
+      current: { question: currentQuestion, answer: currentAnswer, attempt: retryRef.current + 1 },
     });
     const { data, source } = await callAI("reaction", input, {
       reaction: "Thank you, let's move on.",
