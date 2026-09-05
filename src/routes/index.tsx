@@ -372,6 +372,8 @@ function Index() {
     setQuestions(QUESTIONS);
     setDebrief(HARDCODED_DEBRIEF);
     setDemo(false);
+    retryRef.current = 0;
+    setRetryCount(0);
     setView("setup");
   };
 
