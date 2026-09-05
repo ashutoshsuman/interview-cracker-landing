@@ -284,8 +284,6 @@ function Index() {
     if (busy || !answer.trim() || !question) return;
     const currentAnswer = answer;
     const currentQuestion = question.question;
-    const newAnswers = [...answers, { question: currentQuestion, answer: currentAnswer }];
-    setAnswers(newAnswers);
     setAnswer("");
     setBusy(true);
     setAvatarState("thinking");
@@ -298,17 +296,30 @@ function Index() {
     });
     const { data, source } = await callAI("reaction", input, {
       reaction: "Thank you, let's move on.",
+      advance: true,
     });
     if (source === "fallback") setDemo(true);
     const text =
       typeof data?.reaction === "string" && data.reaction
         ? data.reaction
         : "Thank you, let's move on.";
+    const shouldAdvance = data?.advance === false ? retryRef.current >= 1 : true;
     setReaction(text);
 
     const advance = async () => {
       setReaction(null);
       setBusy(false);
+      if (data?.advance === false && retryRef.current < 1) {
+        retryRef.current += 1;
+        setRetryCount(retryRef.current);
+        setAnswer("");
+        setAvatarState("listening");
+        return;
+      }
+      retryRef.current = 0;
+      setRetryCount(0);
+      const newAnswers = [...answers, { question: currentQuestion, answer: currentAnswer }];
+      setAnswers(newAnswers);
       if (questionIndex + 1 >= questions.length) {
         setView("reviewing");
         setAvatarState("thinking");
