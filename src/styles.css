@@ -142,3 +142,45 @@
     color: var(--color-foreground);
   }
 }
+
+/* Interviewer avatar states */
+@keyframes avatar-mouth-flap {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1.4); }
+}
+.avatar-mouth {
+  transform-origin: 70px 74px;
+  animation: avatar-mouth-flap 0.35s ease-in-out infinite;
+}
+
+@keyframes avatar-ring-pulse {
+  0% { box-shadow: 0 0 0 0 oklch(0.6 0.15 250 / 45%); }
+  100% { box-shadow: 0 0 0 18px transparent; }
+}
+.avatar-ring {
+  animation: avatar-ring-pulse 1.6s ease-out infinite;
+}
+
+@keyframes avatar-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+.avatar-breathe {
+  animation: avatar-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes rec-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.rec-dot {
+  animation: rec-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes think-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-6px); opacity: 1; }
+}
+.think-dot {
+  animation: think-bounce 1s ease-in-out infinite;
+}
