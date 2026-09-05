@@ -540,6 +540,16 @@ function Index() {
                   placeholder="Type your answer as you would say it…"
                   className="w-full rounded-xl border border-input bg-card p-4 text-base leading-relaxed placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
+                {!speechSupported && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Voice input works best in Chrome. Type your answer here.
+                  </p>
+                )}
+                {micDenied && (
+                  <p className="mt-2 text-sm text-amber-500">
+                    Mic blocked — type your answer instead
+                  </p>
+                )}
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
                     onClick={submitAnswer}
@@ -548,13 +558,17 @@ function Index() {
                   >
                     Submit answer
                   </button>
-                  <button
-                    disabled
-                    title="Coming next"
-                    className="cursor-not-allowed rounded-xl border border-input px-6 py-3 text-base text-muted-foreground opacity-50"
-                  >
-                    🎤 Speak instead (coming next)
-                  </button>
+                  {speechSupported && (
+                    <button
+                      onClick={recording ? stopRecording : startRecording}
+                      className="inline-flex items-center gap-2 rounded-xl border border-input px-6 py-3 text-base text-foreground"
+                    >
+                      {recording && (
+                        <span className="rec-dot inline-block h-2.5 w-2.5 rounded-full bg-[#DC2626]" />
+                      )}
+                      {recording ? "⏹ Stop" : "🎤 Speak your answer"}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
