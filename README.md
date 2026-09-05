@@ -116,7 +116,7 @@ Session history so a candidate can see whether they improved between attempts; a
 
 ## Key decisions
 
-See [DECISIONS.md](./DECISIONS.md) for what was chosen, what was rejected, and why.
+See [DECISIONS.md](https://github.com/ashutoshsuman/interview-cracker-landing/blob/main/DICISIONS.md) for what was chosen, what was rejected, and why.
 
 ---
 
