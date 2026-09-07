@@ -385,14 +385,23 @@ function Index() {
   }, [view]);
 
   const startInterview = async () => {
+    track("jd_submitted", { jd_length: jd.length });
     setView("preparing");
     setAvatarState("thinking");
     const { data, source } = await callAI("questions", jd, HARDCODED_QUESTIONS);
-    if (source === "fallback") setDemo(true);
+    if (source === "fallback") {
+      setDemo(true);
+      track("fallback_shown", { task: "questions" });
+    }
     const qs: QuestionItem[] =
       Array.isArray(data?.questions) && data.questions.length > 0 ? data.questions : QUESTIONS;
     setQuestions(qs);
     setPersona(data?.persona ?? DEFAULT_PERSONA);
+    interviewSourceRef.current = {
+      source: source === "fallback" ? "fallback" : "live",
+      personaTitle: (data?.persona ?? DEFAULT_PERSONA).title,
+    };
+    interviewStartedFiredRef.current = false;
     setQuestionIndex(0);
     setView("interview");
   };
@@ -402,6 +411,13 @@ function Index() {
     stopRecording();
     const currentAnswer = answer;
     const currentQuestion = question.question;
+    track("question_answered", {
+      question_number: questionIndex + 1,
+      input_mode: speechUsedRef.current ? "voice" : "typed",
+      answer_length: currentAnswer.length,
+      attempt: retryRef.current + 1,
+    });
+    speechUsedRef.current = false;
     setAnswer("");
     setBusy(true);
     setAvatarState("thinking");
@@ -416,7 +432,15 @@ function Index() {
       reaction: "Thank you, let's move on.",
       advance: true,
     });
-    if (source === "fallback") setDemo(true);
+    if (source === "fallback") {
+      setDemo(true);
+      track("fallback_shown", { task: "reaction" });
+    }
+    track("reaction_received", {
+      question_number: questionIndex + 1,
+      advance: data?.advance !== false,
+      source: source === "fallback" ? "fallback" : "live",
+    });
     const text =
       typeof data?.reaction === "string" && data.reaction
         ? data.reaction
