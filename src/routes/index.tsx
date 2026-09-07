@@ -469,7 +469,11 @@ function Index() {
           JSON.stringify({ jd, transcript: newAnswers }),
           HARDCODED_DEBRIEF
         );
-        if (res.source === "fallback") setDemo(true);
+        if (res.source === "fallback") {
+          setDemo(true);
+          track("fallback_shown", { task: "debrief" });
+        }
+        debriefSourceRef.current = res.source === "fallback" ? "fallback" : "live";
         setDebrief(
           res.data && Array.isArray(res.data.perAnswer) && Array.isArray(res.data.priorities)
             ? res.data
@@ -501,6 +505,7 @@ function Index() {
   };
 
   const startOver = () => {
+    track("restart_clicked");
     timers.current.forEach(clearTimeout);
     timers.current = [];
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
