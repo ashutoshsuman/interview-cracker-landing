@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { track } from "../lib/analytics";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -255,6 +256,11 @@ function Index() {
   const retryRef = useRef(0);
   const recognitionRef = useRef<any>(null);
   const speechBaseRef = useRef("");
+  const speechUsedRef = useRef(false);
+  const interviewSourceRef = useRef<{ source: string; personaTitle: string } | null>(null);
+  const debriefSourceRef = useRef<string>("live");
+  const interviewStartedFiredRef = useRef(false);
+  const unsupportedFiredRef = useRef(false);
 
   const stopRecording = () => {
     const rec = recognitionRef.current;
@@ -291,11 +297,13 @@ function Index() {
       for (let i = 0; i < e.results.length; i++) {
         transcript += e.results[i][0]?.transcript ?? "";
       }
+      speechUsedRef.current = true;
       setAnswer(speechBaseRef.current + transcript);
     };
     rec.onerror = (e: any) => {
       if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
         setMicDenied(true);
+        track("voice_denied", { reason: "denied" });
       }
       stopRecording();
     };
@@ -312,6 +320,7 @@ function Index() {
     setMicDenied(false);
     setRecording(true);
     setAvatarState("listening");
+    track("voice_started");
   };
 
   const question = questions[questionIndex];
@@ -348,6 +357,32 @@ function Index() {
     },
     []
   );
+
+  // Fire once when the browser cannot do voice input.
+  useEffect(() => {
+    if (!speechSupported && !unsupportedFiredRef.current) {
+      unsupportedFiredRef.current = true;
+      track("voice_denied", { reason: "unsupported" });
+    }
+  }, [speechSupported]);
+
+  // Fire once when question 1 first renders.
+  useEffect(() => {
+    if (view !== "interview" || questionIndex !== 0) return;
+    if (interviewStartedFiredRef.current || !interviewSourceRef.current) return;
+    interviewStartedFiredRef.current = true;
+    track("interview_started", {
+      source: interviewSourceRef.current.source,
+      persona_title: interviewSourceRef.current.personaTitle,
+    });
+  }, [view, questionIndex]);
+
+  // Fire once when the debrief renders.
+  useEffect(() => {
+    if (view === "result") {
+      track("debrief_viewed", { source: debriefSourceRef.current });
+    }
+  }, [view]);
 
   const startInterview = async () => {
     setView("preparing");
