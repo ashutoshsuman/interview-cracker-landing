@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { track } from "../lib/analytics";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -255,6 +256,11 @@ function Index() {
   const retryRef = useRef(0);
   const recognitionRef = useRef<any>(null);
   const speechBaseRef = useRef("");
+  const speechUsedRef = useRef(false);
+  const interviewSourceRef = useRef<{ source: string; personaTitle: string } | null>(null);
+  const debriefSourceRef = useRef<string>("live");
+  const interviewStartedFiredRef = useRef(false);
+  const unsupportedFiredRef = useRef(false);
 
   const stopRecording = () => {
     const rec = recognitionRef.current;
@@ -291,11 +297,13 @@ function Index() {
       for (let i = 0; i < e.results.length; i++) {
         transcript += e.results[i][0]?.transcript ?? "";
       }
+      speechUsedRef.current = true;
       setAnswer(speechBaseRef.current + transcript);
     };
     rec.onerror = (e: any) => {
       if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
         setMicDenied(true);
+        track("voice_denied", { reason: "denied" });
       }
       stopRecording();
     };
@@ -312,6 +320,7 @@ function Index() {
     setMicDenied(false);
     setRecording(true);
     setAvatarState("listening");
+    track("voice_started");
   };
 
   const question = questions[questionIndex];
@@ -349,15 +358,50 @@ function Index() {
     []
   );
 
+  // Fire once when the browser cannot do voice input.
+  useEffect(() => {
+    if (!speechSupported && !unsupportedFiredRef.current) {
+      unsupportedFiredRef.current = true;
+      track("voice_denied", { reason: "unsupported" });
+    }
+  }, [speechSupported]);
+
+  // Fire once when question 1 first renders.
+  useEffect(() => {
+    if (view !== "interview" || questionIndex !== 0) return;
+    if (interviewStartedFiredRef.current || !interviewSourceRef.current) return;
+    interviewStartedFiredRef.current = true;
+    track("interview_started", {
+      source: interviewSourceRef.current.source,
+      persona_title: interviewSourceRef.current.personaTitle,
+    });
+  }, [view, questionIndex]);
+
+  // Fire once when the debrief renders.
+  useEffect(() => {
+    if (view === "result") {
+      track("debrief_viewed", { source: debriefSourceRef.current });
+    }
+  }, [view]);
+
   const startInterview = async () => {
+    track("jd_submitted", { jd_length: jd.length });
     setView("preparing");
     setAvatarState("thinking");
     const { data, source } = await callAI("questions", jd, HARDCODED_QUESTIONS);
-    if (source === "fallback") setDemo(true);
+    if (source === "fallback") {
+      setDemo(true);
+      track("fallback_shown", { task: "questions" });
+    }
     const qs: QuestionItem[] =
       Array.isArray(data?.questions) && data.questions.length > 0 ? data.questions : QUESTIONS;
     setQuestions(qs);
     setPersona(data?.persona ?? DEFAULT_PERSONA);
+    interviewSourceRef.current = {
+      source: source === "fallback" ? "fallback" : "live",
+      personaTitle: (data?.persona ?? DEFAULT_PERSONA).title,
+    };
+    interviewStartedFiredRef.current = false;
     setQuestionIndex(0);
     setView("interview");
   };
@@ -367,6 +411,13 @@ function Index() {
     stopRecording();
     const currentAnswer = answer;
     const currentQuestion = question.question;
+    track("question_answered", {
+      question_number: questionIndex + 1,
+      input_mode: speechUsedRef.current ? "voice" : "typed",
+      answer_length: currentAnswer.length,
+      attempt: retryRef.current + 1,
+    });
+    speechUsedRef.current = false;
     setAnswer("");
     setBusy(true);
     setAvatarState("thinking");
@@ -381,7 +432,15 @@ function Index() {
       reaction: "Thank you, let's move on.",
       advance: true,
     });
-    if (source === "fallback") setDemo(true);
+    if (source === "fallback") {
+      setDemo(true);
+      track("fallback_shown", { task: "reaction" });
+    }
+    track("reaction_received", {
+      question_number: questionIndex + 1,
+      advance: data?.advance !== false,
+      source: source === "fallback" ? "fallback" : "live",
+    });
     const text =
       typeof data?.reaction === "string" && data.reaction
         ? data.reaction
@@ -410,7 +469,11 @@ function Index() {
           JSON.stringify({ jd, transcript: newAnswers }),
           HARDCODED_DEBRIEF
         );
-        if (res.source === "fallback") setDemo(true);
+        if (res.source === "fallback") {
+          setDemo(true);
+          track("fallback_shown", { task: "debrief" });
+        }
+        debriefSourceRef.current = res.source === "fallback" ? "fallback" : "live";
         setDebrief(
           res.data && Array.isArray(res.data.perAnswer) && Array.isArray(res.data.priorities)
             ? res.data
@@ -442,6 +505,7 @@ function Index() {
   };
 
   const startOver = () => {
+    track("restart_clicked");
     timers.current.forEach(clearTimeout);
     timers.current = [];
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
